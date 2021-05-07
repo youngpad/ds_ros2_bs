@@ -19,7 +19,7 @@ class DroneControlNode(Node):
         self.setpoint_publisher_ = self.create_publisher(TrajectorySetpoint, 'bs_use_setpoint', 10)
 
         # Variables
-        self.launch = False
+        self.land = False
 
         # Run prompt function
         self.prompt_user()
@@ -68,6 +68,7 @@ class DroneControlNode(Node):
 
                 # Disarm before arm
                 control_msg.arm = False
+                control_msg.land = False
                 self.control_publisher_.publish(control_msg)
 
                 # Arm and offboard control true
@@ -75,10 +76,15 @@ class DroneControlNode(Node):
                 control_msg.arm = True
                 self.control_publisher_.publish(control_msg)
 
-            elif (send_control_input.upper() == "LAUNCH"):
-                control_msg.launch = True
+            #elif (send_control_input.upper() == "LAUNCH"):
+            #    control_msg.launch = True
+            #    self.control_publisher_.publish(control_msg)
+            #    print("Launch command sent...")
+            
+            elif (send_control_input.upper() == "LAND"):
+                control_msg.land = True
                 self.control_publisher_.publish(control_msg)
-                print("Launch command sent...")
+                print("Land command sent...")
 
             elif (send_control_input.upper() == "TURN PX ON"):
                 control_msg.switch_px = True
@@ -89,11 +95,6 @@ class DroneControlNode(Node):
                 control_msg.switch_px = False
                 self.control_publisher_.publish(control_msg)
                 print("Switched off pixhawk...")
-
-            elif (send_control_input.upper() == "LAND"):
-                control_msg.launch = False
-                self.control_publisher_.publish(control_msg)
-                print("Land command sent...")
 
             elif (send_control_input.upper()[0] == "X"):
                 print("Setpoint x sent...")
@@ -129,7 +130,6 @@ class DroneControlNode(Node):
                 setpoint_msg.thrust = [float("NaN"), float("NaN"), float("NaN")]
 
                 control_msg.arm = False
-                control_msg.launch = True
 
                 print("Ready for velocity setpoints..")
 
@@ -151,7 +151,6 @@ class DroneControlNode(Node):
                 setpoint_msg.thrust = [0.0, 0.0, 0.0]
 
                 control_msg.arm = False
-                control_msg.launch = True
 
                 print("All reset..")
 
