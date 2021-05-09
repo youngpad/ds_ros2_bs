@@ -15,11 +15,15 @@ class DroneControlNode(Node):
         super().__init__('bs_droneControl')
 
         # Create publishers
-        self.control_publisher_ = self.create_publisher(DroneControl, 'bs_use_control', 10)
-        self.setpoint_publisher_ = self.create_publisher(TrajectorySetpoint, 'bs_use_setpoint', 10)
+        self.control_publisher_01 = self.create_publisher(DroneControl, 'bs_use_01_control', 10)
+        self.setpoint_publisher_01 = self.create_publisher(TrajectorySetpoint, 'bs_use_01_setpoint', 10)
+        self.control_publisher_02 = self.create_publisher(DroneControl, 'bs_use_02_control', 10)
+        self.setpoint_publisher_02 = self.create_publisher(TrajectorySetpoint, 'bs_use_02_setpoint', 10)
 
         # Variables
         self.land = False
+        self.use_nr = 0
+        self.nr_of_use = 0
 
         # Run prompt function
         self.prompt_user()
@@ -47,14 +51,18 @@ class DroneControlNode(Node):
             if (send_control_input == ""):
                 send_control_input = "blank"
 
-            # Check which drone to control
+            # Check which use and drone to control
             first_space = send_control_input.find(" ", 0, len(send_control_input))
+            second_space = send_control_input.find(" ", first_space, len(send_control_input))
+
             if ( (send_control_input[:first_space].isdigit()) and (first_space != -1) ):
-                control_msg.drone = int(send_control_input[:first_space])
-                setpoint_msg.drone = int(send_control_input[:first_space])
+                self.use_nr = int(send_control_input[:first_space])
                 send_control_input = send_control_input[first_space+1:]
-            else:
-                send_control_input = "NO DRONE CHOSEN"
+
+            if ( (send_control_input[:second_space].isdigit()) and (second_space != -1) ):
+                control_msg.drone = int(send_control_input[:second_space])
+                setpoint_msg.drone = int(send_control_input[:second_space])
+                send_control_input = send_control_input[second_space+1:]
 
             # Check command input
             if (send_control_input.upper() == "DISARM"):
@@ -62,59 +70,59 @@ class DroneControlNode(Node):
                 # Disarm
                 print("Disarm command sent..")
                 control_msg.arm = False
-                self.control_publisher_.publish(control_msg)
+                self.publish_(0, control_msg, setpoint_msg)
 
             elif (send_control_input.upper() == "ARM"):
 
                 # Disarm before arm
                 control_msg.arm = False
                 control_msg.land = False
-                self.control_publisher_.publish(control_msg)
+                self.publish_(0, control_msg, setpoint_msg)
 
                 # Arm and offboard control true
                 print("Arm command sent..")
                 control_msg.arm = True
-                self.control_publisher_.publish(control_msg)
+                self.publish_(0, control_msg, setpoint_msg)
 
-            #elif (send_control_input.upper() == "LAUNCH"):
-            #    control_msg.launch = True
-            #    self.control_publisher_.publish(control_msg)
-            #    print("Launch command sent...")
-            
+            elif (send_control_input.upper() == "LAUNCH"):
+                control_msg.launch = True
+                self.publish_(0, control_msg, setpoint_msg)
+                print("Launch command sent...")
+
             elif (send_control_input.upper() == "LAND"):
                 control_msg.land = True
-                self.control_publisher_.publish(control_msg)
+                self.publish_(0, control_msg, setpoint_msg)
                 print("Land command sent...")
 
             elif (send_control_input.upper() == "TURN PX ON"):
                 control_msg.switch_px = True
-                self.control_publisher_.publish(control_msg)
+                self.publish_(0, control_msg, setpoint_msg)
                 print("Switched on pixhawk...")
 
             elif (send_control_input.upper() == "TURN PX OFF"):
                 control_msg.switch_px = False
-                self.control_publisher_.publish(control_msg)
+                self.publish_(0, control_msg, setpoint_msg)
                 print("Switched off pixhawk...")
 
             elif (send_control_input.upper()[0] == "X"):
                 print("Setpoint x sent...")
                 setpoint_msg.x = float(send_control_input[1:])
-                self.setpoint_publisher_.publish(setpoint_msg)
+                self.publish_(0, control_msg, setpoint_msg)
 
             elif (send_control_input.upper()[0] == "Y"):
                 print("Setpoint y sent...")
                 setpoint_msg.y = float(send_control_input[1:])
-                self.setpoint_publisher_.publish(setpoint_msg)
+                self.publish_(0, control_msg, setpoint_msg)
 
             elif (send_control_input.upper()[0] == "Z"):
                 print("Setpoint z sent...")
                 setpoint_msg.z = float(send_control_input[1:])
-                self.setpoint_publisher_.publish(setpoint_msg)
+                self.publish_(0, control_msg, setpoint_msg)
 
             elif (send_control_input.upper()[0:2] == "VZ"):
                 print("Setpoint vz sent...")
                 setpoint_msg.vz = float(send_control_input[2:])
-                self.setpoint_publisher_.publish(setpoint_msg)
+                self.publish_(0, control_msg, setpoint_msg)
 
             elif (send_control_input.upper() == "VELOCITY"):
                 setpoint_msg.x = float("NaN")
@@ -130,11 +138,11 @@ class DroneControlNode(Node):
                 setpoint_msg.thrust = [float("NaN"), float("NaN"), float("NaN")]
 
                 control_msg.arm = False
+                control_msg.launch = False
 
                 print("Ready for velocity setpoints..")
 
-                self.setpoint_publisher_.publish(setpoint_msg)
-                self.control_publisher_.publish(control_msg)
+                self.publish_(0, control_msg, setpoint_msg)
 
 
             elif (send_control_input.upper() == "RESET"):
@@ -151,14 +159,53 @@ class DroneControlNode(Node):
                 setpoint_msg.thrust = [0.0, 0.0, 0.0]
 
                 control_msg.arm = False
+                control_msg.launch = False
 
                 print("All reset..")
 
-                self.setpoint_publisher_.publish(setpoint_msg)
-                self.control_publisher_.publish(control_msg)
+                self.publish_(0, control_msg, setpoint_msg)
 
             else:
                 print("invalid command..")
+
+    def publish_(self, msg, control_msg, setpoint_msg):
+
+        if (self.use_nr == 1 and msg == 0):
+            self.setpoint_publisher_01.publish(setpoint_msg)
+            self.control_publisher_01.publish(control_msg)
+            print("Published all to USE 1")
+        elif (self.use_nr == 1 and msg == 1):
+            self.setpoint_publisher_01.publish(setpoint_msg)
+            print("Published setpoint to USE 1")
+        elif (self.use_nr == 1 and msg == 2):
+            self.control_publisher_01.publish(control_msg)
+            print("Published control to USE 1")
+        elif (self.use_nr == 2 and msg == 0):
+            self.setpoint_publisher_02.publish(setpoint_msg)
+            self.control_publisher_02.publish(control_msg)
+            print("Published all to USE 2")
+        elif (self.use_nr == 2 and msg == 1):
+            self.setpoint_publisher_02.publish(setpoint_msg)
+            print("Published setpoint to USE 2")
+        elif (self.use_nr == 2 and msg == 2):
+            self.control_publisher_02.publish(control_msg)
+            print("Published control to USE 2")
+        elif (self.use_nr == 999 and msg == 0):
+            self.setpoint_publisher_01.publish(setpoint_msg)
+            self.control_publisher_01.publish(control_msg)
+            self.setpoint_publisher_02.publish(setpoint_msg)
+            self.control_publisher_02.publish(control_msg)
+        elif (self.use_nr == 999 and msg == 1):
+            self.setpoint_publisher_01.publish(setpoint_msg)
+            self.setpoint_publisher_02.publish(setpoint_msg)
+        elif (self.use_nr == 999 and msg == 2):
+            self.control_publisher_01.publish(control_msg)
+            self.control_publisher_02.publish(control_msg)
+
+
+
+
+
 
 
 def main(args=None):
