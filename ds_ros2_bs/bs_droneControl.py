@@ -1,5 +1,7 @@
 import rclpy
 from rclpy.node import Node
+import getpass
+
 
 # Import msg
 from std_msgs.msg import String
@@ -14,36 +16,47 @@ class DroneControlNode(Node):
         # Init publisher
         super().__init__('bs_droneControl')
 
-        # Create publishers
-        self.control_publisher_01 = self.create_publisher(DroneControl, 'bs_use_01_control', 10)
-        self.setpoint_publisher_01 = self.create_publisher(TrajectorySetpoint, 'bs_use_01_setpoint', 10)
-        self.control_publisher_02 = self.create_publisher(DroneControl, 'bs_use_02_control', 10)
-        self.setpoint_publisher_02 = self.create_publisher(TrajectorySetpoint, 'bs_use_02_setpoint', 10)
-
-        # Variables
+        #Variables
+        self.uses = 0
         self.land = False
-        self.use_nr = 0
-        self.nr_of_use = 0
+        self.use = 0
+        self.drone_nr = 0
+
+        self.setup()
+
+        # Create publishers
+        self.control_publisher = [0]
+        self.setpoint_publisher = [0]
+        for i in range(1, self.uses+1):
+            self.control_publisher.append(self.create_publisher(DroneControl, '/use_0' + str(i) + '/bs_use_control', 10))
+            self.setpoint_publisher.append(self.create_publisher(TrajectorySetpoint, '/use_0' + str(i) + '/bs_use_setpoint', 10))
 
         # Run prompt function
         self.prompt_user()
 
 
+    def setup(self):
+        username = getpass.getuser()
+        system_setup = open("/home/" + username + "/system_setup.txt")
+        for line in system_setup:
+            if "use: " in line:
+                space = line.find(" ", 0, len(line))
+                self.uses = int(line[space:])
+
     # Prompt user for commands
     def prompt_user(self):
-
-        # Create DroneControl message instance
-        control_msg = DroneControl()
-        setpoint_msg = TrajectorySetpoint()
 
         # Welcome message
         print("#------------------------#")
         print("DRONESWARM CONTROL CENTER")
         print("#------------------------#")
 
+        # Create DroneControl message instance
+        control_msg = DroneControl()
+        setpoint_msg = TrajectorySetpoint()
+
         # Keep prompt going
         while True:
-
             send_control_input = "not enter"
             send_control_input = input(">>")
 
@@ -53,16 +66,22 @@ class DroneControlNode(Node):
 
             # Check which use and drone to control
             first_space = send_control_input.find(" ", 0, len(send_control_input))
-            second_space = send_control_input.find(" ", first_space, len(send_control_input))
-
             if ( (send_control_input[:first_space].isdigit()) and (first_space != -1) ):
-                self.use_nr = int(send_control_input[:first_space])
+                self.use = int(send_control_input[:first_space])
                 send_control_input = send_control_input[first_space+1:]
 
+            second_space = send_control_input.find(" ", 0, len(send_control_input))
             if ( (send_control_input[:second_space].isdigit()) and (second_space != -1) ):
+                self.drone_nr = int(send_control_input[:second_space])
                 control_msg.drone = int(send_control_input[:second_space])
                 setpoint_msg.drone = int(send_control_input[:second_space])
                 send_control_input = send_control_input[second_space+1:]
+
+            # Invalid input if drone nr or use nr is out of range
+            if ((self.use == 999 or self.use in range(1, self.uses+1)) and (self.drone_nr == 999 or self.drone_nr in range(1, 11))):
+                None
+            else:
+                send_control_input = "invalid"
 
             # Check command input
             if (send_control_input.upper() == "DISARM"):
@@ -169,44 +188,20 @@ class DroneControlNode(Node):
                 print("invalid command..")
 
     def publish_(self, msg, control_msg, setpoint_msg):
-
-        if (self.use_nr == 1 and msg == 0):
-            self.setpoint_publisher_01.publish(setpoint_msg)
-            self.control_publisher_01.publish(control_msg)
-            print("Published all to USE 1")
-        elif (self.use_nr == 1 and msg == 1):
-            self.setpoint_publisher_01.publish(setpoint_msg)
-            print("Published setpoint to USE 1")
-        elif (self.use_nr == 1 and msg == 2):
-            self.control_publisher_01.publish(control_msg)
-            print("Published control to USE 1")
-        elif (self.use_nr == 2 and msg == 0):
-            self.setpoint_publisher_02.publish(setpoint_msg)
-            self.control_publisher_02.publish(control_msg)
-            print("Published all to USE 2")
-        elif (self.use_nr == 2 and msg == 1):
-            self.setpoint_publisher_02.publish(setpoint_msg)
-            print("Published setpoint to USE 2")
-        elif (self.use_nr == 2 and msg == 2):
-            self.control_publisher_02.publish(control_msg)
-            print("Published control to USE 2")
-        elif (self.use_nr == 999 and msg == 0):
-            self.setpoint_publisher_01.publish(setpoint_msg)
-            self.control_publisher_01.publish(control_msg)
-            self.setpoint_publisher_02.publish(setpoint_msg)
-            self.control_publisher_02.publish(control_msg)
-        elif (self.use_nr == 999 and msg == 1):
-            self.setpoint_publisher_01.publish(setpoint_msg)
-            self.setpoint_publisher_02.publish(setpoint_msg)
-        elif (self.use_nr == 999 and msg == 2):
-            self.control_publisher_01.publish(control_msg)
-            self.control_publisher_02.publish(control_msg)
-
-
-
-
-
-
+        if (self.use == 999):
+            for publisher in self.setpoint_publisher:
+                if (publisher != 0):
+                    publisher.publish(setpoint_msg)
+            for publisher in self.control_publisher:
+                if (publisher != 0):
+                    publisher.publish(control_msg)
+        elif (msg == 0):
+            self.setpoint_publisher[self.use].publish(setpoint_msg)
+            self.control_publisher[self.use].publish(control_msg)
+        elif (msg == 1):
+            self.setpoint_publisher[self.use].publish(setpoint_msg)
+        elif (msg == 2):
+            self.control_publisher[self.use].publish(control_msg)
 
 def main(args=None):
     rclpy.init(args=args)
